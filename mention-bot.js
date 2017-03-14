@@ -221,6 +221,10 @@ function parseBlame(blame: string): Array<string> {
   return lines;
 }
 
+function parseGitBlame(blame: string): Array<string> {
+  return blame.trim().split('\n');
+}
+
 function getDeletedOwners(
   files: Array<FileInfo>,
   blames: { [key: string]: Array<string> }
@@ -382,6 +386,34 @@ async function fetch(url: string): Promise<string> {
   return cacheGet(cacheKey, () => downloadFileAsync(url, githubAuthCookies));
 }
 
+async function gitBlame(branch: string, path: string) :Promise<string> {
+  return new Promise(function(resolve, reject) {
+    var workspace = '';
+    switch (branch) {
+      case 'as':
+        workspace = 'assetstore_dev';
+        break;
+      case 'msg':
+        workspace = 'connect_next';
+        break;
+      default:
+        workspace = 'connect';
+    }
+    const cmd = `
+      cd /sharedspace/${workspace} &&
+      git blame --line-porcelain ${path} | sed -n 's/^author //p'
+    `;
+    require('child_process')
+      .exec(cmd, {}, function(error, stdout, stderr) {
+        if (error) {
+          reject(error);
+        } else {
+          resolve(stdout.toString());
+        }
+      });
+  });
+}
+
 async function cacheGet(
   cacheKey: string,
   getFn: () => Promise<string>
@@ -539,8 +571,8 @@ async function filterPrivateRepo(
   org: string,
   github: Object
 ): Promise<Array<string>> {
-  var currentMembers = await getMembersOfOrg(org, github, 0);
-
+  // var currentMembers = await getMembersOfOrg(org, github, 0);
+  var currentMembers = ['kgdev', 'linyi01', 'caixuguang123', 'fannairu', 'gewentao', 'haoguo', 'unity-haiwei', 'minhao', 'sakop', 'wjd5', 'fzhangtj', 'fmwang', 'zhongfugao'];
   return owners.filter(function(owner, index) {
     // user passes if they are still in the org
     return currentMembers.some(function(member) {
@@ -619,6 +651,7 @@ async function guessOwners(
     owners = await filterPrivateRepo(owners, org, github);
   }
 
+
   if (owners.length === 0) {
     defaultOwners = defaultOwners.concat(fallbackOwners);
   }
@@ -675,13 +708,14 @@ async function guessOwnersForPullRequest(
   var blames = {};
   // create blame promises (allows concurrent loading)
   var promises = files.map(function(file) {
-    return fetch(repoURL + '/blame/' + targetBranch + '/' + file.path);
+    // return fetch(repoURL + '/blame/' + targetBranch + '/' + file.path);
+    return gitBlame(targetBranch, file.path);
   });
 
   // wait for all promises to resolve
   var results = await Promise.all(promises);
   results.forEach(function(result, index) {
-    blames[files[index].path] = parseBlame(result);
+    blames[files[index].path] = parseGitBlame(result);
   });
 
   // This is the line that implements the actual algorithm, all the lines
