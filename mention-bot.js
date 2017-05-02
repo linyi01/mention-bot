@@ -386,7 +386,7 @@ async function fetch(url: string): Promise<string> {
   return cacheGet(cacheKey, () => downloadFileAsync(url, githubAuthCookies));
 }
 
-async function gitBlame(branch: string, path: string) :Promise<string> {
+async function gitBlame(repo: string, branch: string, path: string) :Promise<string> {
   return new Promise(function(resolve, reject) {
     var workspace = '';
     switch (branch) {
@@ -396,6 +396,14 @@ async function gitBlame(branch: string, path: string) :Promise<string> {
       case 'msg':
         workspace = 'connect_next';
         break;
+      case 'master':
+        if (repo === 'assetstore') {
+          workspace = 'assetstore_dev';
+          break;
+        } else {
+          workspace = 'connect';
+          break;
+        }
       default:
         workspace = 'connect';
     }
@@ -709,7 +717,7 @@ async function guessOwnersForPullRequest(
   // create blame promises (allows concurrent loading)
   var promises = files.map(function(file) {
     // return fetch(repoURL + '/blame/' + targetBranch + '/' + file.path);
-    return gitBlame(targetBranch, file.path);
+    return gitBlame(ownerAndRepo[1], targetBranch, file.path);
   });
 
   // wait for all promises to resolve
